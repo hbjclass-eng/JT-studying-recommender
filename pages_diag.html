@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>쫀통 CSV 진단 도구</title>
+<style>
+  body{font-family:system-ui,Apple SD Gothic Neo,Segoe UI,Roboto,맑은 고딕,sans-serif;max-width:900px;margin:24px auto;padding:0 14px}
+  pre{background:#f6f8fa;border:1px solid #e5e7eb;border-radius:8px;padding:10px;white-space:pre-wrap}
+  code{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace}
+  .ok{color:#027a48}.bad{color:#b42318}.muted{color:#667085}
+</style>
+</head>
+<body>
+<h1>쫀통 CSV 진단</h1>
+<p class="muted">이 페이지를 <code>pages_diag.html</code>로 올리고 GitHub Pages에서 열어보세요.</p>
+
+<h3>환경</h3>
+<pre id="env"></pre>
+
+<h3>요청 결과</h3>
+<pre id="out">요청 중…</pre>
+
+<script>
+(async function run(){
+  const env = {
+    href: location.href,
+    origin: location.origin,
+    pathname: location.pathname,
+    note: "프로젝트 페이지인 경우 base path는 /사용자명.github.io/레포명/ 입니다."
+  };
+  document.getElementById('env').textContent = JSON.stringify(env, null, 2);
+
+  async function check(url){
+    try{
+      const r = await fetch(url+'?v='+Date.now());
+      const txt = await r.text();
+      return {url, ok:r.ok, status:r.status, size:txt.length, head:txt.slice(0,200).replace(/\n/g,'\\n')};
+    }catch(e){
+      return {url, ok:false, error:String(e)};
+    }
+  }
+
+  const a = await check('data/questions.csv');
+  const b = await check('data/types.csv');
+  const lines = [];
+  for(const x of [a,b]){
+    if(x.ok){
+      lines.push(`✅ ${x.url} — ${x.status}, bytes=${x.size}\n첫 200자: ${x.head}`);
+    }else{
+      lines.push(`❌ ${x.url} — ${x.status||''} ${x.error||''}`);
+    }
+  }
+  document.getElementById('out').textContent = lines.join('\n');
+})();
+</script>
+</body>
+</html>
