@@ -3,11 +3,9 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>쫀통 진단 (CSV 2종)</title>
+  <title>쫀통 진단 (CSV 2종 · FIX)</title>
   <style>
-    :root { --gap: 12px; }
     body{font-family:system-ui,Apple SD Gothic Neo,Segoe UI,Roboto,맑은 고딕,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px}
-    h1{margin-bottom:8px}
     .muted{color:#667085;font-size:12px}
     .section{border:1px solid #e5e5e5;border-radius:16px;padding:16px;margin:16px 0;background:#fff}
     .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -20,7 +18,6 @@
     .choice{border:1px solid #e5e7eb;border-radius:999px;padding:6px 12px;cursor:pointer;background:#fff}
     .choice.active{outline:2px solid #2f6feb33;background:#eef5ff}
     .warn{color:#b54708}
-    .ok{color:#027a48}
     .result{border:1px dashed #d0d5dd;border-radius:12px;padding:16px;margin-top:14px;background:#fcfcfd;display:none}
     .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width: 800px){ .grid2{grid-template-columns:1fr} }
@@ -29,7 +26,7 @@
   </style>
 </head>
 <body>
-  <h1>쫀통 진단</h1>
+  <h1>쫀통 진단 (FIX)</h1>
   <div class="muted">CSV: <code>data/questions.csv</code> · <code>data/types.csv</code></div>
 
   <section class="section">
@@ -73,7 +70,7 @@
   </section>
 
 <script>
-// --- CSV parser (quotes, commas, newlines) ---
+// --- Robust CSV Parser (fixed \\r handling) ---
 function parseCSV(text){
   const rows=[]; let i=0; const len=text.length;
   let cur='', row=[], inQ=false;
@@ -85,8 +82,12 @@ function parseCSV(text){
     } else {
       if(ch==='\"'){ inQ=true; }
       else if(ch===','){ row.push(cur); cur=''; }
-      else if(ch==='\n' || ch==='\r'){ if(ch==='\\r' && i+1<len && text[i+1]==='\\n') i++; row.push(cur); cur=''; if(row.length>1||row[0]!==''){rows.push(row);} row=[]; }
-      else { cur+=ch; }
+      else if(ch==='\\n' || ch==='\\r'){
+        if(ch==='\\r' && i+1<len && text[i+1]==='\\n') i++;
+        row.push(cur); cur='';
+        if(row.length>1 || row[0]!=='' ){ rows.push(row); }
+        row=[];
+      } else { cur+=ch; }
     }
     i++;
   }
@@ -119,17 +120,15 @@ function render(){
     const id = `q_${q.qid}`;
     const opts = [];
     for(let s=q.min_score; s<=q.max_score; s++){
-      opts.push(\`<label class="choice"><input type="radio" name="\${id}" value="\${s}" hidden>\${s}점</label>\`);
+      opts.push(`<label class="choice"><input type="radio" name="${id}" value="${s}" hidden>${s}점</label>`);
     }
-    return \`<div class="q" data-qid="\${q.qid}" data-axis="\${q.axis}" data-min="\${q.min_score}" data-max="\${q.max_score}" data-rev="\${q.reverse?1:0}">
-      <h3>\${q.order}. \${esc(q.question)}</h3>
-      <div class="choices">\${opts.join('')}</div>
-    </div>\`;
+    return `<div class="q" data-qid="${q.qid}" data-axis="${q.axis}" data-min="${q.min_score}" data-max="${q.max_score}" data-rev="${q.reverse?1:0}">
+      <h3>${q.order}. ${esc(q.question)}</h3>
+      <div class="choices">${opts.join('')}</div>
+    </div>`;
   };
   document.getElementById('list-method').innerHTML = M.map(mk).join('');
   document.getElementById('list-attitude').innerHTML = A.map(mk).join('');
-
-  // activate UI
   document.querySelectorAll('.choices').forEach(ch => {
     ch.addEventListener('click', (e)=>{
       const lbl = e.target.closest('label.choice'); if(!lbl) return;
@@ -159,7 +158,6 @@ function compute(){
     if(q.dataset.axis==='method') mSum += v; else aSum += v;
   }
   if(miss.length){ return {error:`미응답 문항(${miss.length}) 있음`, miss}; }
-  // labels
   const hi = (cfg, sum)=> {
     switch(cfg.op_high){
       case '>=': return sum >= cfg.threshold;
@@ -172,7 +170,6 @@ function compute(){
   };
   const mLabel = hi(mCfg, mSum) ? mCfg.label_high : mCfg.label_low;
   const aLabel = hi(aCfg, aSum) ? aCfg.label_high : aCfg.label_low;
-  // mapping
   const found = DB.map.find(t=>String(t.method_label)===String(mLabel) && String(t.attitude_label)===String(aLabel));
   if(!found) return {error:'유형 매핑을 찾을 수 없습니다.', detail:{mLabel,aLabel,mSum,aSum}};
   return {mSum, aSum, mLabel, aLabel, type:found};
@@ -182,64 +179,65 @@ function showResult(res){
   const box = document.getElementById('result');
   if(res.error){
     box.style.display='block';
-    box.innerHTML = \`<div class="warn"><b>오류:</b> \${esc(res.error)}</div>\`;
+    box.innerHTML = `<div class="warn"><b>오류:</b> ${res.error}</div>`;
     return;
   }
   const t = res.type;
   box.style.display='block';
-  box.innerHTML = \`
+  box.innerHTML = `
     <div class="row" style="justify-content:space-between">
-      <div><b>결과</b> <span class="pill">\${esc(t.type_code)}</span></div>
-      <div class="muted">합계 — 방법: \${res.mSum}점 / 태도: \${res.aSum}점</div>
+      <div><b>결과</b> <span class="pill">${t.type_code}</span></div>
+      <div class="muted">합계 — 방법: ${res.mSum}점 / 태도: ${res.aSum}점</div>
     </div>
-    <h3 style="margin:8px 0 4px">\${esc(t.type_name)}</h3>
-    <div>\${esc(t.description)}</div>
-    <div class="muted" style="margin-top:8px">판정: [방법] \${esc(res.mLabel)} · [태도] \${esc(res.aLabel)}</div>
-  \`;
+    <h3 style="margin:8px 0 4px">${t.type_name}</h3>
+    <div>${t.description}</div>
+    <div class="muted" style="margin-top:8px">판정: [방법] ${res.mLabel} · [태도] ${res.aLabel}</div>
+  `;
 }
 
-// --- Loaders ---
-async function fetchText(url){
-  const res = await fetch(url + '?v=' + Date.now());
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  return await res.text();
+// --- Fetch with timeout & fallback ---
+function fetchWithTimeout(resource, options = {}){
+  const { timeout = 5000 } = options;
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  return fetch(resource, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(id));
 }
+
 async function loadCSVFiles(textQ, textT){
   const Q = parseCSV(textQ).rows;
   const T = parseCSV(textT).rows;
   DB.questions = Q.map(r=>({
     qid:r.qid, axis:r.axis, order:byNum(r.order,0),
     question:r.question, min_score:byNum(r.min_score,1), max_score:byNum(r.max_score,4),
-    weight:byNum(r.weight,1), reverse:(String(r.reverse).trim()==='1'||/^true$/i.test(r.reverse)), active:(String(r.active).trim()==='1'||/^true$/i.test(r.active))
+    weight:byNum(r.weight,1), reverse:truth(r.reverse), active:truth(r.active)
   }));
-  // axes
   DB.axes = {};
   T.filter(r=>r.record_type==='axis').forEach(r=>{
-    DB.axes[r.axis] = {
-      threshold: byNum(r.threshold,13),
-      op_high: (r.op_high||'>=').trim(),
-      label_high: r.label_high, label_low: r.label_low
-    };
+    DB.axes[r.axis] = { threshold: byNum(r.threshold,13), op_high:(r.op_high||'>=').trim(),
+      label_high:r.label_high, label_low:r.label_low };
   });
-  // mapping
   DB.map = T.filter(r=>r.record_type==='type').map(r=>({
     method_label:r.method_label, attitude_label:r.attitude_label,
     type_code:r.type_code, type_name:r.type_name, description:r.description
   }));
-  summarize();
-  render();
+  summarize(); render();
   document.getElementById('quiz').style.display='block';
 }
 
 async function init(){
   const status = document.getElementById('status');
   try{
-    const [tq, tt] = await Promise.all([fetchText('data/questions.csv'), fetchText('data/types.csv')]);
+    const [tq, tt] = await Promise.all([
+      fetchWithTimeout('data/questions.csv?v='+Date.now(), {timeout:6000}).then(r=>{ if(!r.ok) throw new Error('Q:'+r.status); return r.text(); }),
+      fetchWithTimeout('data/types.csv?v='+Date.now(), {timeout:6000}).then(r=>{ if(!r.ok) throw new Error('T:'+r.status); return r.text(); })
+    ]);
     status.textContent = 'CSV 로드 완료';
     document.getElementById('fallback').style.display='none';
     await loadCSVFiles(tq, tt);
   }catch(err){
-    status.innerHTML = '<span class="warn">자동 로드 실패</span> — 브라우저의 보안 정책(file://)일 수 있어요. 아래에서 CSV를 직접 올리세요.';
+    console.warn('Auto-load failed:', err);
+    status.innerHTML = '<span class="warn">자동 로드 실패</span> — 브라우저 보안 정책(file://) 또는 경로 문제일 수 있습니다. 아래 업로드로 진행하세요.';
     document.getElementById('fallback').style.display='block';
   }
 }
