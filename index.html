@@ -1,157 +1,159 @@
 <!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>쫀통 — NO FETCH (임베디드 CSV)</title>
-<style>
-  body{{font-family:system-ui,Apple SD Gothic Neo,Segoe UI,Roboto,맑은 고딕,sans-serif;max-width:920px;margin:24px auto;padding:0 14px}}
-  .muted{{color:#667085;font-size:12px}}
-  .box{{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff}}
-  .q{{border:1px solid #eef0f3;border-radius:10px;padding:10px;margin:8px 0;background:#fafbfc}}
-  .q h3{{margin:0 0 6px;font-size:15px}}
-  .result{{border:1px dashed #d0d5dd;border-radius:10px;padding:12px;margin-top:10px;display:none}}
-  button{{padding:10px 14px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;cursor:pointer}}
-  .pill{{display:inline-block;background:#f2f4f7;border:1px solid #e4e7ec;border-radius:999px;padding:2px 10px;font-size:12px;margin-left:6px}}
-</style>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>쫀통 공부법 진단</title>
+  <style>
+    body{font-family:system-ui,Apple SD Gothic Neo,Segoe UI,Roboto,맑은 고딕,sans-serif;max-width:980px;margin:24px auto;padding:0 16px}
+    h1{margin:0 0 6px}
+    .muted{color:#667085;font-size:12px}
+    .box{border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0;background:#fff}
+    .q{border:1px solid #eef0f3;border-radius:10px;padding:10px;margin:8px 0;background:#fafbfc}
+    .q h3{margin:0 0 6px;font-size:15px}
+    .result{border:1px dashed #d0d5dd;border-radius:10px;padding:12px;margin-top:10px;display:none}
+    button{padding:10px 14px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;cursor:pointer}
+    .pill{display:inline-block;background:#f2f4f7;border:1px solid #e4e7ec;border-radius:999px;padding:2px 10px;font-size:12px;margin-left:6px}
+    .err{color:#b42318}
+  </style>
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
 </head>
 <body>
-<h1>쫀통 (임베디드 CSV)</h1>
-<div class="muted">이 HTML 내부에 CSV가 포함되어 있어 네트워크 없이 항상 동작합니다.</div>
+  <h1>쫀통 진단</h1>
+  <div class="muted">CSV: <code>data/questions.csv</code> · <code>data/types.csv</code></div>
 
-<div id="quiz" class="box">
-  <div><b>문항</b> <span id="meta" class="pill">-</span></div>
-  <div id="list"></div>
-  <div style="margin-top:10px">
-    <button id="btnReset">초기화</button>
-    <button id="btnSubmit">결과 보기</button>
+  <div id="status" class="box muted">CSV 불러오는 중…</div>
+
+  <div id="quiz" class="box" style="display:none">
+    <div><b>문항</b> <span id="meta" class="pill">-</span></div>
+    <div id="list"></div>
+    <div style="margin-top:10px">
+      <button id="btnReset">초기화</button>
+      <button id="btnSubmit">결과 보기</button>
+    </div>
+    <div id="result" class="result"></div>
   </div>
-  <div id="result" class="result"></div>
-</div>
-
-<!-- Embedded CSV -->
-<script id="qcsv" type="text/csv">qid,axis,order,question,min_score,max_score,weight,reverse,active,note
-Q01,method,1,"암기과목 (통사, 한국사) 를 3주 전부터 시작한다.",1,4,1,0,1,
-Q02,method,2,"시험 준비 기간에 플래너를 작성한다",1,4,1,0,1,
-Q03,method,3,"수업시간에 선생님이 하신 말씀을 꼼꼼히 필기하는 편이다.",1,4,1,0,1,
-Q04,method,4,"단기간 집중하기 보다는 장기간 집중으로 공부를 하는 편이다.",1,4,1,0,1,
-Q05,method,5,"벼락치기를 한 적 없다.",1,4,1,0,1,
-Q06,attitude,1,"시험 준비 기간엔 전자기기 사용 시간을 스스로 줄인다.",1,4,1,0,1,
-Q07,attitude,2,"학원 시간 외에 따로 추가 공부를 한다(숙제 제외).",1,4,1,0,1,
-Q08,attitude,3,"수업 중 이해가 안되는 부분이 있으면 자주 질문하는 편이다.",1,4,1,0,1,
-Q09,attitude,4,"정기고사 (모의고사 포함) 이후에 자신의 오답을 분석해본다.",1,4,1,0,1,
-Q10,attitude,5,"모르는 문제가 있으면 답지를 보지 않고 끝까지 고민하는 편이다.",1,4,1,0,1,
-</script>
-<script id="tcsv" type="text/csv">record_type,axis,threshold,op_high,label_high,label_low,method_label,attitude_label,type_code,type_name,description
-axis,method,13,>=,엘리트,벼락치기,,,,,
-axis,attitude,13,>=,자기주도,수동,,,,,
-type,,,,,,엘리트,자기주도,T1,"철두철미 엘리트형(엘리트 자기주도형)","전체 시험 범위 중 선생님이 강조하신 핵심 포인트와 본인이 자주 틀리는 부분 위주로 범위를 축소하여 집중 학습한다면 학습 효율이 더 올라갈 것입니다. 학습 시간을 줄여 집중력을 극대화하고 시간 낭비를 최소화하는 것도 추천합니다."
-type,,,,,,엘리트,수동,T2,"뭐든 잘 흡수하는 스폰지형(엘리트 수동형)","능동적 자기주도가 어렵다면 학교나 학원 등의 수업 환경을 활용하는 것이 효과적입니다. 수업 전에 오늘 배울 내용을 간단히 확인하고, 수업 시간에는 설명을 들으며 노트에 정리한 후 수업 직후에는 배운 내용을 복습하고 문제를 풀며 바로 적용하는 것을 추천합니다."
-type,,,,,,벼락치기,자기주도,T3,"스릴 추구형(벼락치기 자기주도형)","단기간에 최대 효율을 이끌어내기 위해 개념을 가볍게 읽으며 핵심어에는 밑줄을 긋고, 밑줄 그은 핵심어를 중심으로 빠른 속독을 반복함으로써 학습 부담을 줄이면서도 암기를 강화하는 것을 추천합니다."
-type,,,,,,벼락치기,수동,T4,"여유 만끽형(벼락치기 수동형)","시험 직전, 학원에서 받은 자료나 학교 프린트 등을 우선적으로 집중 학습하되, 눈으로 읽기만 하는 수동적 방법 대신에 내용을 직접 요약해보거나 문제를 풀어보는 등 능동적 공부법을 더해 이해도를 높이는 것을 추천합니다."
-</script>
 
 <script>
-function parseCSV(text){{
-  const rows=[]; let i=0; const len=text.length; let cur='', row=[], inQ=false;
-  while(i<len){{
-    const ch=text[i];
-    if(inQ){{
-      if(ch==='"'){{ if(i+1<len && text[i+1]==='"'){{cur+='"'; i++;}} else inQ=false; }}
-      else cur+=ch;
-    }} else {{
-      if(ch==='"') inQ=true;
-      else if(ch===','){{ row.push(cur); cur=''; }}
-      else if(ch==='\n' || ch==='\r'){{ if(ch==='\r' && i+1<len && text[i+1]==='\n') i++; row.push(cur); cur=''; if(row.length>1||row[0]!=='') rows.push(row); row=[]; }}
-      else cur+=ch;
-    }}
-    i++;
-  }}
-  if(cur!=='' || row.length){{ row.push(cur); rows.push(row); }}
-  if(rows.length && rows[0].length) rows[0][0]=rows[0][0].replace(/^\uFEFF/,'');
-  const header=rows[0]||[];
-  const recs=rows.slice(1).map(r=>{{const o={{}}; header.forEach((h,idx)=>o[h]=r[idx]??''); return o;}});
-  return recs;
-}}
-function esc(s){{return String(s).replace(/[&<>"']/g, m=>({{ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }}[m]));}}
-function byNum(v,d=0){{const n=Number(v); return Number.isFinite(n)?n:d;}}
-function truth(v){{return String(v).trim()==='1' || /^true$/i.test(String(v));}}
+// ----- Helpers (아이스크림 파일 패턴: Papa.parse + rows 배열 사용) -----
+function rowsToObjects(rows){
+  if(!rows || rows.length===0) return [];
+  const header = rows[0].map(h => String(h||'').replace(/^\\uFEFF/,''));
+  const out = [];
+  for(let i=1;i<rows.length;i++){
+    const r = rows[i];
+    if(!r || r.length===0) continue;
+    const o = {};
+    for(let j=0;j<header.length;j++){ o[header[j]] = r[j]!==undefined ? r[j] : ''; }
+    out.push(o);
+  }
+  return out;
+}
+function byNum(v, d=0){ const n=Number(v); return Number.isFinite(n)?n:d; }
+function truth(v){ return String(v).trim()==='1' || /^true$/i.test(String(v)); }
+function esc(s){ return String(s).replace(/[&<>\"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#039;' }[m])); }
 
-const DB={{questions:[], axes:{{}}, map:[]}};
-(function init(){{
-  const tq=document.getElementById('qcsv').textContent.trim();
-  const tt=document.getElementById('tcsv').textContent.trim();
-  const Q=parseCSV(tq), T=parseCSV(tt);
-  DB.questions = Q.map(r=>({{
-    qid:r.qid, axis:r.axis, order:byNum(r.order,0), question:r.question,
-    min_score:byNum(r.min_score,1), max_score:byNum(r.max_score,4),
-    weight:byNum(r.weight,1), reverse:truth(r.reverse), active:truth(r.active)
-  }}));
-  DB.axes={{}}; T.filter(r=>r.record_type==='axis').forEach(r=>{{
-    DB.axes[r.axis]={{threshold:byNum(r.threshold,13), op_high:(r.op_high||'>=').trim(), label_high:r.label_high, label_low:r.label_low}};
-  }});
-  DB.map=T.filter(r=>r.record_type==='type').map(r=>({{
-    method_label:r.method_label, attitude_label:r.attitude_label, type_code:r.type_code, type_name:r.type_name, description:r.description
-  }}));
-  render();
-}})();
+const DB={questions:[], axes:{}, map:[]};
 
-function render(){{
+function render(){
   const list=document.getElementById('list'); list.innerHTML='';
   const M = DB.questions.filter(q=>q.axis==='method' && q.active).sort((a,b)=>a.order-b.order);
   const A = DB.questions.filter(q=>q.axis==='attitude' && q.active).sort((a,b)=>a.order-b.order);
-  document.getElementById('meta').textContent = `문항 ${{M.length + A.length}}개 · 1~4점`;
-  const rows=[['[학습 방법]',M],['[학습 태도]',A]];
-  for(const [title, arr] of rows){{
+  const blocks=[['[학습 방법]',M],['[학습 태도]',A]];
+  document.getElementById('meta').textContent = `문항 ${M.length + A.length}개 · 1~4점`;
+
+  for(const [title, arr] of blocks){
     const h=document.createElement('div'); h.className='muted'; h.textContent=title; list.appendChild(h);
-    for(const q of arr){{
+    for(const q of arr){
       const wrap=document.createElement('div'); wrap.className='q'; wrap.dataset.axis=q.axis;
-      wrap.innerHTML = `<h3>${{q.order}}. ${{esc(q.question)}}</h3>`;
+      wrap.innerHTML = `<h3>${q.order}. ${esc(q.question)}</h3>`;
       const sel=document.createElement('select'); sel.innerHTML='<option value="">점수 선택</option>';
-      for(let s=q.min_score; s<=q.max_score; s++) sel.innerHTML += `<option value="${{s}}">${{s}}점</option>`;
+      for(let s=q.min_score; s<=q.max_score; s++){ sel.innerHTML += `<option value="${s}">${s}점</option>`; }
       sel.dataset.min=q.min_score; sel.dataset.max=q.max_score; sel.dataset.rev=q.reverse?1:0;
       wrap.appendChild(sel); list.appendChild(wrap);
-    }}
-  }}
-}}
+    }
+  }
+  document.getElementById('quiz').style.display='block';
+}
 
-function compute(){{
+function compute(){
   const mCfg=DB.axes['method'], aCfg=DB.axes['attitude'];
-  if(!mCfg||!aCfg) return {{error:'축 설정이 없습니다.'}};
+  if(!mCfg||!aCfg) return {error:'축 설정이 없습니다.'};
   const selects = Array.from(document.querySelectorAll('#list select'));
   let mSum=0,aSum=0,miss=0;
-  for(const s of selects){{
+  for(const s of selects){
     const v = s.value===''?null:Number(s.value);
-    if(v==null){{miss++; continue;}}
+    if(v==null){miss++; continue;}
     const min=Number(s.dataset.min)||1, max=Number(s.dataset.max)||4, rev=(s.dataset.rev==='1');
     const val = rev? (min+max-v): v;
     const axis = s.parentElement.dataset.axis;
     if(axis==='method') mSum+=val; else aSum+=val;
-  }}
-  if(miss>0) return {{error:`미응답 ${{miss}}개 있음`}};
-  const hi=(cfg,sum)=>{{ switch(cfg.op_high){{case '>=':return sum>=cfg.threshold;case '>':return sum>cfg.threshold;case '<=':return sum<=cfg.threshold;case '<':return sum<cfg.threshold;case '==':return sum==cfg.threshold;default:return sum>=cfg.threshold;}} }};
+  }
+  if(miss>0) return {error:`미응답 ${miss}개 있음`};
+  const hi=(cfg,sum)=>{ switch(cfg.op_high){case '>=':return sum>=cfg.threshold;case '>':return sum>cfg.threshold;case '<=':return sum<=cfg.threshold;case '<':return sum<cfg.threshold;case '==':return sum==cfg.threshold;default:return sum>=cfg.threshold;} };
   const mLabel = hi(mCfg,mSum)?mCfg.label_high:mCfg.label_low;
   const aLabel = hi(aCfg,aSum)?aCfg.label_high:aCfg.label_low;
   const found = DB.map.find(t=>String(t.method_label)===String(mLabel) && String(t.attitude_label)===String(aLabel));
-  if(!found) return {{error:'유형 매핑을 찾을 수 없습니다.'}};
-  return {{mSum,aSum,mLabel,aLabel,type:found}};
-}}
+  if(!found) return {error:'유형 매핑을 찾을 수 없습니다.'};
+  return {mSum,aSum,mLabel,aLabel,type:found};
+}
 
-function show(res){{
+function show(res){
   const box=document.getElementById('result'); box.style.display='block';
-  if(res.error){{ box.innerHTML = `<div style="color:#b42318"><b>오류:</b> ${{res.error}}</div>`; return; }}
+  if(res.error){ box.innerHTML = `<div class="err"><b>오류:</b> ${esc(res.error)}</div>`; return; }
   const t=res.type;
-  box.innerHTML = `<div><b>결과:</b> ${{esc(t.type_name)}} <span class="pill">${{esc(t.type_code)}}</span></div>
-    <div class="muted">합계 — 방법 ${{res.mSum}} / 태도 ${{res.aSum}}</div>
-    <div style="margin-top:6px">${{esc(t.description)}}</div>
-    <div class="muted" style="margin-top:6px">판정: [방법] ${{esc(res.mLabel)}} · [태도] ${{esc(res.aLabel)}}</div>`;
-}}
+  box.innerHTML = `<div><b>결과:</b> ${esc(t.type_name)} <span class="pill">${esc(t.type_code)}</span></div>
+    <div class="muted">합계 — 방법 ${res.mSum} / 태도 ${res.aSum}</div>
+    <div style="margin-top:6px">${esc(t.description)}</div>
+    <div class="muted" style="margin-top:6px">판정: [방법] ${esc(res.mLabel)} · [태도] ${esc(res.aLabel)}</div>`;
+}
 
-document.getElementById('btnReset').addEventListener('click', ()=>{{
+// ----- Load CSV exactly like the ice-cream page (Papa.parse with rows, no header option) -----
+async function loadCSV_likeIceCream(){
+  const status=document.getElementById('status');
+  try{
+    const [rq, rt] = await Promise.all([
+      fetch('data/questions.csv?v='+Date.now()),
+      fetch('data/types.csv?v='+Date.now())
+    ]);
+    if(!rq.ok || !rt.ok){
+      status.innerHTML = `<span class="err">로드 실패</span> — ${!rq.ok?`questions: ${rq.status} `:''}${!rt.ok?`types: ${rt.status} `:''}`;
+      return;
+    }
+    const [tq, tt] = await Promise.all([rq.text(), rt.text()]);
+    const rowsQ = Papa.parse(tq, {skipEmptyLines:true}).data;
+    const rowsT = Papa.parse(tt, {skipEmptyLines:true}).data;
+    const Q = rowsToObjects(rowsQ);
+    const T = rowsToObjects(rowsT);
+
+    // map into DB the same way as before
+    DB.questions = Q.map(r=>({
+      qid:r.qid, axis:r.axis, order:byNum(r.order,0),
+      question:r.question, min_score:byNum(r.min_score,1), max_score:byNum(r.max_score,4),
+      weight:byNum(r.weight,1), reverse:truth(r.reverse), active:truth(r.active)
+    }));
+    DB.axes = {};
+    T.filter(r=>r.record_type==='axis').forEach(r=>{
+      DB.axes[r.axis] = { threshold: byNum(r.threshold,13), op_high:(r.op_high||'>=').trim(), label_high:r.label_high, label_low:r.label_low };
+    });
+    DB.map = T.filter(r=>r.record_type==='type').map(r=>({
+      method_label:r.method_label, attitude_label:r.attitude_label, type_code:r.type_code, type_name:r.type_name, description:r.description
+    }));
+
+    status.textContent = '로드 완료';
+    render();
+  }catch(e){
+    status.innerHTML = `<span class="err">예외 발생</span> — ${esc(e.message)}`;
+  }
+}
+
+document.getElementById('btnReset').addEventListener('click', ()=>{
   document.querySelectorAll('#list select').forEach(s=>s.value='');
   const box=document.getElementById('result'); box.style.display='none'; box.innerHTML='';
-}});
+});
 document.getElementById('btnSubmit').addEventListener('click', ()=> show(compute()));
+
+loadCSV_likeIceCream();
 </script>
 </body>
 </html>
